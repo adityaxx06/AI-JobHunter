@@ -43,9 +43,10 @@ def clear_sources() -> None:
 
 
 def _register_builtin_sources() -> None:
-    """Register mock + greenhouse + lever + ashby (all disabled-safe: no network unless configured)."""
+    """Register mock + greenhouse + lever + ashby + himalaya (all disabled-safe: no network unless configured)."""
     from worker.sources.ashby.source import AshbySource
     from worker.sources.greenhouse.source import GreenhouseSource
+    from worker.sources.himalayas.source import HimalayaSource
     from worker.sources.lever.source import LeverSource
     from worker.sources.manual.mock_source import MockSource
 
@@ -53,6 +54,7 @@ def _register_builtin_sources() -> None:
     register_source(GreenhouseSource())
     register_source(LeverSource())
     register_source(AshbySource())
+    register_source(HimalayaSource())
 
 
 _register_builtin_sources()
