@@ -4,7 +4,8 @@ Verified against Tavily's public OpenAPI (docs.tavily.com):
 ``POST https://api.tavily.com/search`` with bearer auth
 (``Authorization: Bearer <key>``) and a JSON body of
 ``{query, search_depth, max_results, include_answer: false,
-include_published_date: true}``. Response ``results[]`` carry
+include_published_date: true}`` plus an optional ``time_range``
+(``TAVILY_TIME_RANGE``, unset by default). Response ``results[]`` carry
 ``{title, url, content, score, published_date}``.
 
 Cost discipline (free tier ≈ 1,000 credits/month): ``basic`` depth costs
@@ -90,11 +91,15 @@ class TavilySearchProvider(SearchProvider):
     provider_name = "tavily"
 
     def __init__(self, api_key: str = "", search_depth: str = "",
-                 timeout: float = None, opener=None, max_retries: int = 0) -> None:
+                 timeout: float = None, opener=None, max_retries: int = 0,
+                 time_range: str = "") -> None:
         self.api_key = api_key or search_config.get_tavily_key()
         self.search_depth = (search_depth or search_config.get_tavily_depth()).strip().lower()
         if self.search_depth not in search_config.TAVILY_DEPTHS:
             self.search_depth = search_config.DEFAULT_TAVILY_DEPTH
+        self.time_range = (time_range or search_config.get_tavily_time_range()).strip().lower()
+        if self.time_range not in search_config.TAVILY_TIME_RANGES:
+            self.time_range = ""
         self.timeout = timeout if timeout is not None else search_config.get_timeout()
         self.opener = opener or _default_opener
         self.max_retries = max(0, int(max_retries))
@@ -125,13 +130,18 @@ class TavilySearchProvider(SearchProvider):
         if not query or not query.strip():
             return []
         count = max(1, min(int(max_results), MAX_RESULTS_CAP))
-        body = json.dumps({
+        payload = {
             "query": query.strip(),
             "search_depth": self.search_depth,
             "max_results": count,
             "include_answer": False,
             "include_published_date": True,
-        }).encode("utf-8")
+        }
+        if self.time_range:
+            # Best-effort recency hint only; strict publication-date filtering
+            # stays off so undated results are never silently dropped.
+            payload["time_range"] = self.time_range
+        body = json.dumps(payload).encode("utf-8")
         attempts = 1 + self.max_retries
         for attempt in range(1, attempts + 1):
             try:
