@@ -110,6 +110,39 @@ Source discovery (per source, failures isolated)
 - Optional live test: `ASHBY_LIVE_TEST=true ASHBY_BOARDS=<name> pytest
   worker/tests/test_ashby_live.py -v` (one read-only request, never in the suite).
 
+## Himalayas connector (Phase 10C-2)
+
+- Verified public endpoint (official docs, `himalayas.app/docs/remote-jobs-api`):
+  `GET https://himalayas.app/jobs/api/search` with `q`, `employment_type`,
+  `limit` (max 20/request) returning `{"jobs": [...], "nextCursor": ...}` —
+  no key, no signup, free. Same four-file split (`client.py`, `parser.py`,
+  `source.py`, `config.py`); registered as `himalaya` (`source_type`
+  `job_board`, reusing the existing DB CHECK value); idle unless enabled.
+  One bounded page per keyword — no cursor walking, no polling (data refreshes
+  ~daily, so re-polling within a day gains nothing).
+- Configuration: `HIMALAYA_ENABLED=true`, `HIMALAYA_KEYWORDS=intern;software
+  engineer` (max 5), `HIMALAYA_EMPLOYMENT_TYPES=Intern` (empty disables the
+  filter), `HIMALAYA_TIMEOUT` (default 10s). Disabled/empty config returns
+  `[]` + a `health_check()` note — never a crash.
+- Safety/rate limits: sequential requests, one page per keyword, bounded
+  timeout, 5MB cap, no default retries (optional `Retry-After`-honoring
+  retry). 400/429/5xx/network map to typed errors; per-keyword failures land
+  in `source.last_errors` while healthy keywords still contribute.
+- Mapping: documented fields only — `title` (required), `companyName`,
+  `locationRestrictions[].name` (empty means worldwide → "Remote"),
+  `employmentType`, `seniority` (list or string), sanitized-HTML
+  `description` via the shared helper, numeric salaries, `currency`.
+  `pubDate` (Unix epoch, seconds or millis) → `posted_at`; `expiryDate` and
+  discovery time are never substituted. `applicationLink` becomes
+  `apply_url`/`source_url` only when it parses as http(s); URL-less items are
+  skipped. `guid` → `external_id`. Full item preserved in `raw_data`.
+- Attribution (per the API terms): displayed jobs link back to their
+  Himalayas `applicationLink` (kept verbatim as `apply_url`), and
+  `source_name` stays `himalaya` so attribution survives into `job_sources`.
+- Optional live test: `HIMALAYA_LIVE_TEST=true pytest
+  worker/tests/test_himalaya_live.py -v` (two read-only requests — search +
+  field probe, never in the suite).
+
 ## Search discovery (Phase 4.3 abstraction; mock default, Tavily opt-in 6.0)
 
 - Separate abstraction from `JobSource`: `worker/search/base.py::SearchProvider`
