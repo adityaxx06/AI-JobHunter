@@ -136,8 +136,14 @@ Source discovery (per source, failures isolated)
   Internshala category pages carry page-update dates (not posting dates) and
   its detail pages arrive undated; Indeed returns undated search pages.
   Keyword wording (`latest`, `posted today`) is not a date filter and must
-  never be treated as one. Newest-first ordering cannot be guaranteed from
-  this data; `posted_at`/`first_seen_at` remain display/recency signals only.
+  never be treated as one. An optional best-effort hint exists:
+  `TAVILY_TIME_RANGE=day|week|month|year` is passed through to Tavily when
+  set (empty default = unchanged behavior, invalid values fall back to
+  unset). It does NOT guarantee results are newly posted or correctly dated,
+  costs nothing extra, and never enables strict publication-date filtering
+  (which would silently drop undated LinkedIn results). Newest-first
+  ordering cannot be guaranteed from this data;
+  `posted_at`/`first_seen_at` remain display/recency signals only.
 - Classification (`worker/search/classifier.py`): URL-hostname rules only —
   `boards.greenhouse.io` → greenhouse, `jobs.lever.co` → lever,
   `jobs.ashbyhq.com` → ashby, `/careers|/jobs|/join`-style paths →
