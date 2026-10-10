@@ -233,3 +233,60 @@ def test_errors_never_contain_key():
         except TavilyError as exc:
             assert key not in str(exc), behavior
             assert key not in repr(exc), behavior
+
+
+# --- 12. optional time-range filtering ---------------------------------------------------------
+
+
+def _recording_provider(**kwargs):
+    """Provider capturing its exact request body (offline, never live)."""
+    bodies = []
+
+    def opener(url: str, timeout: float, *, body: bytes, headers: dict):
+        bodies.append(json.loads(body.decode("utf-8")))
+        payload = {"query": "java", "response_time": 0.1, "results": []}
+        return FakeResponse(json.dumps(payload).encode())
+
+    kwargs.setdefault("api_key", "tvly-test-key")
+    return TavilySearchProvider(opener=opener, **kwargs), bodies
+
+
+def test_unset_time_range_preserves_legacy_body(monkeypatch):
+    monkeypatch.delenv("TAVILY_TIME_RANGE", raising=False)
+    provider, bodies = _recording_provider()
+    assert provider.time_range == ""
+    provider.search("java developer intern")
+    assert bodies == [{
+        "query": "java developer intern",
+        "search_depth": "basic",
+        "max_results": 10,
+        "include_answer": False,
+        "include_published_date": True,
+    }]
+
+
+def test_each_supported_time_range_passed_through():
+    for value in ("day", "week", "month", "year"):
+        provider, bodies = _recording_provider(time_range=value)
+        assert provider.time_range == value
+        provider.search("java")
+        assert bodies[0]["time_range"] == value
+        assert "filter_by_published_date" not in bodies[0]
+
+
+def test_time_range_from_env_and_invalid_falls_back(monkeypatch):
+    monkeypatch.setenv("TAVILY_TIME_RANGE", " Week ")
+    assert _recording_provider()[0].time_range == "week"
+    for bad in ("decade", "latest", "", "  "):
+        monkeypatch.setenv("TAVILY_TIME_RANGE", bad)
+        provider, bodies = _recording_provider()
+        assert provider.time_range == ""
+        provider.search("java")
+        assert "time_range" not in bodies[0]
+
+
+def test_time_range_config_getter():
+    assert search_config.get_tavily_time_range({}) == ""
+    assert search_config.get_tavily_time_range({"TAVILY_TIME_RANGE": "month"}) == "month"
+    assert search_config.get_tavily_time_range({"TAVILY_TIME_RANGE": "bogus"}) == ""
+    assert search_config.TAVILY_TIME_RANGES == ("day", "week", "month", "year")
