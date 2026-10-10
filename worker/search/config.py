@@ -29,6 +29,10 @@ DEFAULT_MAX_INGESTION_JOBS_PER_BOARD = 50
 TAVILY_DEPTHS = ("basic", "advanced", "fast", "ultra-fast")
 DEFAULT_TAVILY_DEPTH = "basic"
 
+# Tavily time ranges per the public API (day/week/month/year). Unset by
+# default: no date filtering, undated results (e.g. LinkedIn) are kept.
+TAVILY_TIME_RANGES = ("day", "week", "month", "year")
+
 
 def _get(env: object, key: str, default: str = "") -> str:
     if env is None:
@@ -102,6 +106,19 @@ def get_tavily_depth(env: object = None) -> str:
     """Tavily search depth (validated; invalid values fall back to basic)."""
     depth = _get(env, "TAVILY_SEARCH_DEPTH", DEFAULT_TAVILY_DEPTH).strip().lower()
     return depth if depth in TAVILY_DEPTHS else DEFAULT_TAVILY_DEPTH
+
+
+def get_tavily_time_range(env: object = None) -> str:
+    """Tavily time range, or "" when unconfigured (validated).
+
+    Unset (or invalid, which safely falls back to unset) means no date
+    filtering — existing request behavior is preserved byte-for-byte and
+    undated results are kept. Strict publication-date filtering
+    (``filter_by_published_date``) is never enabled by this project because
+    it would silently drop useful undated LinkedIn results.
+    """
+    value = _get(env, "TAVILY_TIME_RANGE", "").strip().lower()
+    return value if value in TAVILY_TIME_RANGES else ""
 
 
 def is_live_ingestion_enabled(env: object = None) -> bool:
